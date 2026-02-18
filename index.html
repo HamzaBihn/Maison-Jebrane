@@ -9,11 +9,21 @@
         body { font-family: 'Playfair Display', serif; margin: 0; padding: 20px; background-color: #1a1a1a; color: #f4f4f4; }
         .container { max-width: 1400px; margin: auto; }
         
-        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; }
-        h2 { color: #D4AF37; margin: 0; font-size: 2em; text-transform: uppercase; }
+        /* En-tête avec Logo */
+        .header { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 20px; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #D4AF37; 
+            padding-bottom: 15px; 
+        }
+        .logo { height: 80px; width: auto; }
+        h2 { color: #D4AF37; margin: 0; font-size: 2.2em; text-transform: uppercase; letter-spacing: 2px; }
         
+        /* Interface */
         .toolbar { background: #262626; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #D4AF37; flex-wrap: wrap; gap: 10px; }
-        
         .formulaire { background: #262626; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #444; }
         .champ { display: flex; flex-direction: column; gap: 5px; }
         label { font-weight: bold; font-size: 0.75em; color: #D4AF37; text-transform: uppercase; }
@@ -23,13 +33,12 @@
         .btn-export { background: #D4AF37; color: #1a1a1a; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .btn-reset { background: transparent; color: #ff4d4d; border: 1px solid #ff4d4d; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
 
-        /* Style spécifique du nouveau tableau */
+        /* Tableau Triple Colonnes */
         .table-container { overflow-x: auto; border-radius: 12px; border: 1px solid #D4AF37; }
         table { border-collapse: collapse; width: 100%; background: #262626; font-size: 0.85em; }
         th, td { border: 1px solid #3d3d3d; padding: 0; text-align: center; }
         th { background-color: #1a1a1a; color: #D4AF37; padding: 10px; }
         
-        /* Division de la cellule en 3 */
         .cell-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; width: 100%; min-width: 120px; }
         .sub-cell { padding: 8px 2px; border-right: 1px solid #3d3d3d; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .sub-cell:last-child { border-right: none; }
@@ -40,6 +49,9 @@
         .val-prod { color: #F9E586; font-weight: bold; font-size: 1.1em; }
 
         td:first-child { font-weight: bold; text-align: left; color: #D4AF37; background: #1a1a1a; padding: 10px; min-width: 150px; }
+        #status { font-size: 0.7em; padding: 5px 12px; border-radius: 20px; }
+        .online { border: 1px solid #D4AF37; color: #D4AF37; }
+        .offline { border: 1px solid #ff4d4d; color: #ff4d4d; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -47,6 +59,7 @@
 
 <div class="container">
     <div class="header">
+        <img src="logo.png" alt="Logo Maison Jebrane" class="logo">
         <h2>Maison Jebrane</h2>
         <span id="status" class="offline">Connexion...</span>
     </div>
@@ -110,7 +123,6 @@
       document.getElementById('enteteTableau').appendChild(th);
   });
 
-  // Sauvegarde des objectifs (directement quand on tape dans le tableau)
   window.sauverObjectif = function(gateau, jour, valeur) {
     set(ref(db, `production/${gateau}/${jour}/objectif`), valeur);
   };
@@ -165,8 +177,8 @@
   }
 
   window.exporterExcel = function() {
-    const wb = XLSX.utils.book_new();
     const table = document.getElementById("tableauProduction");
+    const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.table_to_sheet(table);
     XLSX.utils.book_append_sheet(wb, ws, "Production");
     XLSX.writeFile(wb, "Maison_Jebrane_Production.xlsx");
@@ -174,4 +186,3 @@
 </script>
 </body>
 </html>
-
