@@ -42,8 +42,6 @@
         .val-prod { color: #F9E586; font-weight: bold; font-size: 1.1em; }
         #status { font-size: 0.6em; padding: 4px 10px; border-radius: 20px; border: 1px solid #D4AF37; color: #D4AF37; }
         .delete-icon { color: #ff4d4d; cursor: pointer; margin-left: auto; opacity: 0.5; }
-        
-        /* Classe pour masquer les colonnes non sélectionnées */
         .hidden-col { display: none; }
     </style>
 </head>
@@ -67,30 +65,34 @@
         </div>
 
         <div class="box">
-            <h3>Mode d'Affichage</h3>
+            <h3>Affichage Dynamique</h3>
             <div class="form-row">
                 <select id="viewMode" onchange="relancerRender()">
-                    <option value="semaine">Vue Semaine (Toute)</option>
-                    <option value="Lundi">Lundi Uniquement</option>
-                    <option value="Mardi">Mardi Uniquement</option>
-                    <option value="Mercredi">Mercredi Uniquement</option>
-                    <option value="Jeudi">Jeudi Uniquement</option>
-                    <option value="Vendredi">Vendredi Uniquement</option>
-                    <option value="Samedi">Samedi Uniquement</option>
-                    <option value="Dimanche">Dimanche Uniquement</option>
+                    <option value="semaine">📅 Toute la Semaine</option>
+                    <option value="Lundi">Lundi</option><option value="Mardi">Mardi</option>
+                    <option value="Mercredi">Mercredi</option><option value="Jeudi">Jeudi</option>
+                    <option value="Vendredi">Vendredi</option><option value="Samedi">Samedi</option>
+                    <option value="Dimanche">Dimanche</option>
                 </select>
-                <button class="btn btn-outline" id="btnFiltre" onclick="toggleFiltre()">🔍 Reste > 0 Uniquement</button>
+                <select id="filterCatView" onchange="relancerRender()">
+                    <option value="toutes">📂 Toutes les catégories</option>
+                </select>
+                <button class="btn btn-outline" id="btnFiltre" onclick="toggleFiltre()">🔍 Reste > 0</button>
             </div>
         </div>
 
         <div class="box">
-            <h3>Ajouts</h3>
+            <h3>Gestion Catalogue</h3>
             <div class="form-row">
-                <input type="text" id="nomCat" placeholder="Nouvelle Catégorie...">
-                <button class="btn btn-outline" onclick="ajouterCategorie()" style="margin-bottom:5px;">+ Catégorie</button>
-                <input type="text" id="nomProd" placeholder="Nom du produit...">
-                <select id="selectCat"></select>
-                <button class="btn btn-gold" onclick="ajouterProduit()">+ Ajouter Produit</button>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="nomCat" placeholder="Catégorie..." style="flex:1;">
+                    <button class="btn btn-outline" onclick="ajouterCategorie()">+</button>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="nomProd" placeholder="Produit..." style="flex:1;">
+                    <select id="selectCat" style="width:100px;"></select>
+                    <button class="btn btn-gold" onclick="ajouterProduit()">+</button>
+                </div>
             </div>
         </div>
 
@@ -99,16 +101,16 @@
             <div class="form-row">
                 <select id="stockProdSelect"></select>
                 <div style="display:flex; gap:5px;">
-                    <select id="stockJourSelect"></select>
+                    <select id="stockJourSelect" style="flex:1;"></select>
                     <input type="number" id="stockValeur" value="0" style="width:60px;">
+                    <button class="btn btn-gold" onclick="validerStock()">OK</button>
                 </div>
-                <button class="btn btn-gold" onclick="validerStock()">Valider</button>
             </div>
         </div>
     </div>
 
     <div id="listeCategories"></div>
-    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ TOUT EFFACER (Danger)</button>
+    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ RÉINITIALISATION TOTALE</button>
 </div>
 
 <script type="module">
@@ -145,13 +147,9 @@
   window.toggleFiltre = () => {
       filtreActif = !filtreActif;
       const btn = document.getElementById('btnFiltre');
-      if (filtreActif) {
-          btn.classList.replace('btn-outline', 'btn-orange');
-          btn.innerText = "🚫 Afficher Tout";
-      } else {
-          btn.classList.replace('btn-orange', 'btn-outline');
-          btn.innerText = "🔍 Reste > 0 Uniquement";
-      }
+      btn.classList.toggle('btn-orange', filtreActif);
+      btn.classList.toggle('btn-outline', !filtreActif);
+      btn.innerText = filtreActif ? "🚫 Masquer terminés" : "🔍 Reste > 0";
       render(globalData);
   };
 
@@ -162,19 +160,32 @@
     const production = data.production || {};
     const parent = document.getElementById('listeCategories');
     const selectCat = document.getElementById('selectCat');
+    const filterCatView = document.getElementById('filterCatView');
     const stockProdSelect = document.getElementById('stockProdSelect');
-    const viewMode = document.getElementById('viewMode').value; // Mode Semaine ou un jour précis
+    const viewMode = document.getElementById('viewMode').value;
+    const catFiltre = filterCatView.value;
     
-    parent.innerHTML = ""; selectCat.innerHTML = ""; stockProdSelect.innerHTML = "";
+    // On garde en mémoire la catégorie sélectionnée avant de vider le select
+    const currentCatSelection = filterCatView.value;
+
+    parent.innerHTML = ""; 
+    selectCat.innerHTML = ""; 
+    stockProdSelect.innerHTML = "";
+    filterCatView.innerHTML = '<option value="toutes">📂 Toutes les catégories</option>';
 
     Object.keys(containers).forEach(catID => {
         const catName = containers[catID].nom;
-        selectCat.add(new Option(catName, catID));
         
+        // Remplissage des menus de sélection
+        selectCat.add(new Option(catName, catID));
+        filterCatView.add(new Option(catName, catID));
+
+        // --- FILTRE PAR CATÉGORIE ---
+        if (catFiltre !== "toutes" && catFiltre !== catID) return;
+
         const section = document.createElement('div');
         section.className = "categorie-container";
         
-        // Entête du tableau avec masquage dynamique des colonnes jours
         let headerHtml = `<thead><tr><th>Produits</th>`;
         jours.forEach(j => {
             const isHidden = (viewMode !== "semaine" && viewMode !== j) ? "hidden-col" : "";
@@ -202,9 +213,6 @@
             const pName = produits[pID].nom;
             stockProdSelect.add(new Option(`${catName} - ${pName}`, `${catID}/${pID}/${pName}`));
 
-            // --- FILTRE "RESTE > 0" ---
-            // Si on est en vue "Semaine", le filtre regarde TOUTE la semaine.
-            // Si on est en vue "Journée", il regarde seulement CE jour là.
             if (filtreActif) {
                 if (viewMode === "semaine") {
                     const aFaireSemaine = jours.some(j => {
@@ -221,14 +229,12 @@
             hasVisibleProduct = true;
             const tr = document.createElement('tr');
             tr.dataset.id = pID;
-            
             let htmlProd = `<td class="prod-name"><span class="handle">☰</span> ${pName} <span class="delete-icon" onclick="supprimerProd('${catID}','${pID}')">✕</span></td>`;
             
             jours.forEach(j => {
                 const isHidden = (viewMode !== "semaine" && viewMode !== j) ? "hidden-col" : "";
                 const vals = (production[pID] && production[pID][j]) ? production[pID][j] : { obj: 0, stock: 0 };
                 const aFaire = Math.max(0, (parseInt(vals.obj)||0) - (parseInt(vals.stock)||0));
-                
                 htmlProd += `<td class="${isHidden}"><div class="cell-grid">
                     <div class="sub-cell"><span class="label-sub">Obj</span><input type="number" class="val-obj" value="${vals.obj||0}" onchange="updateVal('${pID}','${j}','obj',this.value)"></div>
                     <div class="sub-cell"><span class="label-sub">Stk</span><span class="val-stock">${vals.stock||0}</span></div>
@@ -251,9 +257,11 @@
             });
         }
     });
+    // Restaurer la sélection du filtre catégorie pour éviter qu'il revienne à "toutes" à chaque clic
+    filterCatView.value = currentCatSelection;
   }
 
-  // --- LOGIQUE COMMUNE ---
+  // --- LOGIQUE FIREBASE & EXPORT ---
   window.exporterExcel = () => {
     const wb = XLSX.utils.book_new();
     const categories = globalData.categories || {};
@@ -275,7 +283,6 @@
       const row2 = ["Produits"];
       jours.forEach(() => { row2.push("Obj", "Stk", "Rst"); });
       rows.push(row2);
-
       const sortedProdKeys = Object.keys(produits).sort((a,b) => (produits[a].ordre || 0) - (produits[b].ordre || 0));
       sortedProdKeys.forEach(pID => {
         const row = [produits[pID].nom];
@@ -306,6 +313,7 @@
   window.updateVal = (pID, jour, type, val) => set(ref(db, `production/${pID}/${jour}/${type}`), val);
   window.validerStock = () => {
     const combo = document.getElementById('stockProdSelect').value.split('/');
+    if(combo.length < 2) return;
     set(ref(db, `production/${combo[1]}/${document.getElementById('stockJourSelect').value}/stock`), document.getElementById('stockValeur').value);
   };
   window.supprimerProd = (catID, pID) => { if(confirm("Supprimer ?")) remove(ref(db, `categories/${catID}/produits/${pID}`)); };
