@@ -14,7 +14,6 @@
         .logo { height: 50px; }
         h2 { color: #D4AF37; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
 
-        /* Configuration des Sections */
         .admin-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .box { background: #262626; padding: 15px; border-radius: 12px; border: 1px solid #444; }
         h3 { color: #D4AF37; font-size: 0.8em; text-transform: uppercase; margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 5px; }
@@ -24,12 +23,13 @@
         label { font-size: 0.7em; color: #D4AF37; text-transform: uppercase; }
         select, input { padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 6px; font-family: sans-serif; }
 
-        .btn { padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; border: none; text-transform: uppercase; font-size: 0.8em; }
+        .btn { padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; border: none; text-transform: uppercase; font-size: 0.8em; transition: 0.2s; }
         .btn-gold { background: linear-gradient(45deg, #D4AF37, #F9E586); color: #1a1a1a; }
+        .btn-orange { background: #e67e22; color: white; }
         .btn-outline { background: transparent; border: 1px solid #D4AF37; color: #D4AF37; }
         .btn-danger { background: #721c24; color: #f8d7da; border: 1px solid #f5c6cb; }
+        .btn:hover { opacity: 0.9; transform: scale(1.02); }
 
-        /* Tableaux par Catégorie */
         .categorie-container { margin-bottom: 40px; }
         .cat-title { background: #D4AF37; color: #1a1a1a; padding: 10px 20px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
         
@@ -41,7 +41,6 @@
         .handle { cursor: grab; color: #D4AF37; padding-right: 10px; font-size: 1.2em; }
         .prod-name { font-weight: bold; text-align: left; padding-left: 10px; min-width: 200px; display: flex; align-items: center; }
 
-        /* Grille Triple Valeurs */
         .cell-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; height: 100%; }
         .sub-cell { border-right: 1px solid #3d3d3d; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; }
         .sub-cell:last-child { border-right: none; }
@@ -70,7 +69,8 @@
             <div class="form-row">
                 <input type="date" id="dateDebut" onchange="sauverDates()">
                 <input type="date" id="dateFin" onchange="sauverDates()">
-                <button class="btn btn-gold" onclick="exporterExcel()">📊 Exporter Excel Global</button>
+                <button class="btn btn-gold" onclick="exporterExcel()">📊 Excel Global</button>
+                <button class="btn btn-orange" onclick="resetStocksUniquement()">🔄 Vider les Stocks</button>
             </div>
         </div>
 
@@ -92,25 +92,25 @@
         </div>
 
         <div class="box">
-            <h3>Mise à jour Stock Rapide</h3>
+            <h3>Mise à jour Stock</h3>
             <div class="form-row">
                 <select id="stockProdSelect"></select>
                 <div style="display:flex; gap:5px;">
                     <select id="stockJourSelect"></select>
                     <input type="number" id="stockValeur" value="0" style="width:60px;">
                 </div>
-                <button class="btn btn-gold" onclick="validerStock()">Mettre à jour</button>
+                <button class="btn btn-gold" onclick="validerStock()">Valider</button>
             </div>
         </div>
     </div>
 
     <div id="listeCategories"></div>
-    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ Réinitialisation Totale</button>
+    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ Tout Effacer (Catalogue inclus)</button>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getDatabase, ref, set, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { getDatabase, ref, set, onValue, remove, push, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAbrOwjPc1eOpMF8I8A-LLhiPO8toiu3oQ",
@@ -127,18 +127,13 @@
   const db = getDatabase(app);
   const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
-  // --- LOGIQUE CORE ---
-
   onValue(ref(db, '/'), (snapshot) => {
     const data = snapshot.val() || {};
     document.getElementById('status').innerText = "● EN LIGNE";
-    
-    // Dates
     if(data.config && data.config.dates) {
         document.getElementById('dateDebut').value = data.config.dates.debut || "";
         document.getElementById('dateFin').value = data.config.dates.fin || "";
     }
-
     render(data);
   });
 
@@ -157,7 +152,6 @@
         const catName = containers[catID].nom;
         selectCat.add(new Option(catName, catID));
 
-        // Création du tableau HTML
         const section = document.createElement('div');
         section.className = "categorie-container";
         section.innerHTML = `
@@ -171,46 +165,34 @@
         `;
         parent.appendChild(section);
 
-        // Remplissage des produits
         const tbody = document.getElementById(`body-${catID}`);
         const produits = containers[catID].produits || {};
-        
-        // On trie par l'ordre sauvegardé
         const sortedKeys = Object.keys(produits).sort((a,b) => (produits[a].ordre || 0) - (produits[b].ordre || 0));
 
         sortedKeys.forEach(pID => {
             const pName = produits[pID].nom;
             stockProdSelect.add(new Option(`${catName} - ${pName}`, `${catID}/${pID}/${pName}`));
-
             const tr = document.createElement('tr');
             tr.dataset.id = pID;
             tr.dataset.cat = catID;
-            
             let htmlProd = `<td class="prod-name"><span class="handle">☰</span> ${pName} <span class="delete-icon" onclick="supprimerProd('${catID}','${pID}')">✕</span></td>`;
-            
             jours.forEach(j => {
                 const vals = (production[pID] && production[pID][j]) ? production[pID][j] : { obj: 0, stock: 0 };
                 const aFaire = Math.max(0, (parseInt(vals.obj)||0) - (parseInt(vals.stock)||0));
-                htmlProd += `
-                    <td>
-                        <div class="cell-grid">
-                            <div class="sub-cell"><span class="label-sub">Obj</span><input type="number" class="val-obj" value="${vals.obj||0}" onchange="updateVal('${pID}','${j}','obj',this.value)"></div>
-                            <div class="sub-cell"><span class="label-sub">Stk</span><span class="val-stock">${vals.stock||0}</span></div>
-                            <div class="sub-cell"><span class="label-sub">Rst</span><span class="val-prod">${aFaire}</span></div>
-                        </div>
-                    </td>`;
+                htmlProd += `<td><div class="cell-grid">
+                    <div class="sub-cell"><span class="label-sub">Obj</span><input type="number" class="val-obj" value="${vals.obj||0}" onchange="updateVal('${pID}','${j}','obj',this.value)"></div>
+                    <div class="sub-cell"><span class="label-sub">Stk</span><span class="val-stock">${vals.stock||0}</span></div>
+                    <div class="sub-cell"><span class="label-sub">Rst</span><span class="val-prod">${aFaire}</span></div>
+                </div></td>`;
             });
             tr.innerHTML = htmlProd;
             tbody.appendChild(tr);
         });
 
-        // Activer le Drag & Drop
         new Sortable(tbody, {
-            handle: '.handle',
-            animation: 150,
+            handle: '.handle', animation: 150,
             onEnd: function() {
-                const rows = tbody.querySelectorAll('tr');
-                rows.forEach((row, index) => {
+                tbody.querySelectorAll('tr').forEach((row, index) => {
                     update(ref(db, `categories/${catID}/produits/${row.dataset.id}`), { ordre: index });
                 });
             }
@@ -218,39 +200,51 @@
     });
   }
 
-  // --- ACTIONS ---
+  // --- NOUVELLE FONCTION : RESET STOCK UNIQUEMENT ---
+  window.resetStocksUniquement = async () => {
+    if(confirm("Voulez-vous remettre à zéro tous les STOCKS uniquement ? (Les objectifs et les gâteaux seront conservés)")) {
+        const prodRef = ref(db, 'production');
+        const snapshot = await get(prodRef);
+        if (snapshot.exists()) {
+            const production = snapshot.val();
+            // On parcourt chaque produit
+            Object.keys(production).forEach(pID => {
+                // On parcourt chaque jour
+                jours.forEach(j => {
+                    if (production[pID][j]) {
+                        // On force le stock à 0 mais on garde l'objectif
+                        production[pID][j].stock = 0;
+                    }
+                });
+            });
+            // On renvoie l'objet modifié vers Firebase
+            await set(prodRef, production);
+            alert("Stocks réinitialisés !");
+        }
+    }
+  };
 
   window.ajouterCategorie = () => {
     const nom = document.getElementById('nomCat').value;
     if(nom) { push(ref(db, 'categories'), { nom: nom }); document.getElementById('nomCat').value = ""; }
   };
-
   window.ajouterProduit = () => {
     const nom = document.getElementById('nomProd').value;
     const catID = document.getElementById('selectCat').value;
-    if(nom && catID) {
-        push(ref(db, `categories/${catID}/produits`), { nom: nom, ordre: 99 });
-        document.getElementById('nomProd').value = "";
-    }
+    if(nom && catID) { push(ref(db, `categories/${catID}/produits`), { nom: nom, ordre: 99 }); document.getElementById('nomProd').value = ""; }
   };
-
   window.updateVal = (pID, jour, type, val) => set(ref(db, `production/${pID}/${jour}/${type}`), val);
-
   window.validerStock = () => {
-    const combo = document.getElementById('stockProdSelect').value.split('/'); // [catID, pID, name]
+    const combo = document.getElementById('stockProdSelect').value.split('/');
     const jour = document.getElementById('stockJourSelect').value;
     const val = document.getElementById('stockValeur').value;
     set(ref(db, `production/${combo[1]}/${jour}/stock`), val);
   };
-
   window.supprimerProd = (catID, pID) => { if(confirm("Supprimer ce produit ?")) remove(ref(db, `categories/${catID}/produits/${pID}`)); };
   window.supprimerCat = (catID) => { if(confirm("Supprimer TOUTE la catégorie ?")) remove(ref(db, `categories/${catID}`)); };
   window.sauverDates = () => set(ref(db, 'config/dates'), { debut: document.getElementById('dateDebut').value, fin: document.getElementById('dateFin').value });
   window.resetTotal = () => { if(confirm("⚠️ ATTENTION : Cela efface TOUT !")) remove(ref(db, '/')); };
-
-  // Init Jours
   jours.forEach(j => document.getElementById('stockJourSelect').add(new Option(j, j)));
-
   window.exporterExcel = () => {
       const wb = XLSX.utils.book_new();
       document.querySelectorAll('table').forEach((table, i) => {
