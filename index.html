@@ -12,7 +12,7 @@
         .header { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; }
         .logo { height: 50px; }
         h2 { color: #D4AF37; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
-        .admin-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .admin-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .box { background: #262626; padding: 15px; border-radius: 12px; border: 1px solid #444; }
         h3 { color: #D4AF37; font-size: 0.8em; text-transform: uppercase; margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 5px; }
         .form-row { display: flex; flex-direction: column; gap: 10px; }
@@ -63,21 +63,26 @@
                 <button class="btn btn-orange" onclick="resetStocksUniquement()">🔄 Vider les Stocks</button>
             </div>
         </div>
+
         <div class="box">
-            <h3>Nouvelle Catégorie</h3>
+            <h3>Focus Production</h3>
             <div class="form-row">
-                <input type="text" id="nomCat" placeholder="ex: Entremets...">
-                <button class="btn btn-outline" onclick="ajouterCategorie()">+ Créer Tableau</button>
+                <select id="filtreJourSelect" onchange="relancerRender()"></select>
+                <button class="btn btn-outline" id="btnFiltre" onclick="toggleFiltre()">🔍 Reste > 0 Uniquement</button>
             </div>
         </div>
+
         <div class="box">
-            <h3>Ajouter un Produit</h3>
+            <h3>Ajouts</h3>
             <div class="form-row">
-                <input type="text" id="nomProd" placeholder="Nom du gâteau...">
+                <input type="text" id="nomCat" placeholder="Nouvelle Catégorie...">
+                <button class="btn btn-outline" onclick="ajouterCategorie()" style="margin-bottom:5px;">+ Catégorie</button>
+                <input type="text" id="nomProd" placeholder="Nom du produit...">
                 <select id="selectCat"></select>
-                <button class="btn btn-gold" onclick="ajouterProduit()">+ Ajouter</button>
+                <button class="btn btn-gold" onclick="ajouterProduit()">+ Ajouter Produit</button>
             </div>
         </div>
+
         <div class="box">
             <h3>Mise à jour Stock</h3>
             <div class="form-row">
@@ -92,7 +97,7 @@
     </div>
 
     <div id="listeCategories"></div>
-    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ Tout Effacer</button>
+    <button class="btn btn-danger" style="margin-top:50px;" onclick="resetTotal()">⚠️ TOUT EFFACER (Danger)</button>
 </div>
 
 <script type="module">
@@ -114,6 +119,7 @@
   const db = getDatabase(app);
   const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
   let globalData = {};
+  let filtreActif = false;
 
   onValue(ref(db, '/'), (snapshot) => {
     globalData = snapshot.val() || {};
@@ -124,6 +130,21 @@
     }
     render(globalData);
   });
+
+  window.toggleFiltre = () => {
+      filtreActif = !filtreActif;
+      const btn = document.getElementById('btnFiltre');
+      if (filtreActif) {
+          btn.classList.replace('btn-outline', 'btn-orange');
+          btn.innerText = "🚫 Afficher Tout";
+      } else {
+          btn.classList.replace('btn-orange', 'btn-outline');
+          btn.innerText = "🔍 Reste > 0 Uniquement";
+      }
+      render(globalData);
+  };
+
+  window.relancerRender = () => { if(filtreActif) render(globalData); };
 
   function render(data) {
     const containers = data.categories || {};
@@ -141,7 +162,7 @@
         const section = document.createElement('div');
         section.className = "categorie-container";
         section.innerHTML = `
-            <div class="cat-title" data-name="${catName}">${catName} <span class="delete-icon" onclick="supprimerCat('${catID}')">✕</span></div>
+            <div class="cat-title">${catName} <span class="delete-icon" onclick="supprimerCat('${catID}')">✕</span></div>
             <div class="table-container">
                 <table>
                     <thead><tr><th>Produits</th>${jours.map(j => `<th>${j}</th>`).join('')}</tr></thead>
@@ -149,18 +170,28 @@
                 </table>
             </div>
         `;
-        parent.appendChild(section);
 
-        const tbody = document.getElementById(`body-${catID}`);
+        const tbody = section.querySelector('tbody');
         const produits = containers[catID].produits || {};
         const sortedKeys = Object.keys(produits).sort((a,b) => (produits[a].ordre || 0) - (produits[b].ordre || 0));
+
+        let hasVisibleProduct = false;
 
         sortedKeys.forEach(pID => {
             const pName = produits[pID].nom;
             stockProdSelect.add(new Option(`${catName} - ${pName}`, `${catID}/${pID}/${pName}`));
-            
+
+            // --- LOGIQUE DU FILTRE ---
+            if (filtreActif) {
+                const jourChoisi = document.getElementById('filtreJourSelect').value;
+                const vals = (production[pID] && production[pID][jourChoisi]) ? production[pID][jourChoisi] : { obj: 0, stock: 0 };
+                const reste = Math.max(0, (parseInt(vals.obj)||0) - (parseInt(vals.stock)||0));
+                if (reste <= 0) return; // On masque si rien à faire
+            }
+
+            hasVisibleProduct = true;
             const tr = document.createElement('tr');
-            tr.dataset.id = pID; 
+            tr.dataset.id = pID;
             
             let htmlProd = `<td class="prod-name"><span class="handle">☰</span> ${pName} <span class="delete-icon" onclick="supprimerProd('${catID}','${pID}')">✕</span></td>`;
             jours.forEach(j => {
@@ -175,21 +206,23 @@
             tr.innerHTML = htmlProd; tbody.appendChild(tr);
         });
 
-        // RE-INITIALISATION DU DRAG AND DROP
-        new Sortable(tbody, {
-            handle: '.handle',
-            animation: 150,
-            onEnd: function() {
-                const rows = tbody.querySelectorAll('tr');
-                rows.forEach((row, index) => {
-                    const pID = row.dataset.id;
-                    update(ref(db, `categories/${catID}/produits/${pID}`), { ordre: index });
-                });
-            }
-        });
+        if (hasVisibleProduct) {
+            parent.appendChild(section);
+            // Re-lier Sortable
+            new Sortable(tbody, {
+                handle: '.handle', animation: 150,
+                onEnd: function() {
+                    const rows = tbody.querySelectorAll('tr');
+                    rows.forEach((row, index) => {
+                        update(ref(db, `categories/${catID}/produits/${row.dataset.id}`), { ordre: index });
+                    });
+                }
+            });
+        }
     });
   }
 
+  // --- EXPORT & FIREBASE ---
   window.exporterExcel = () => {
     const wb = XLSX.utils.book_new();
     const categories = globalData.categories || {};
@@ -200,9 +233,7 @@
     Object.keys(categories).forEach(catID => {
       const catName = categories[catID].nom;
       const produits = categories[catID].produits || {};
-      const rows = [];
-      const merges = [];
-
+      const rows = []; const merges = [];
       const row1 = [""];
       jours.forEach((j, index) => {
         row1.push(j, "", "");
@@ -210,15 +241,13 @@
         merges.push({ s: { r: 0, c: startCol }, e: { r: 0, c: startCol + 2 } });
       });
       rows.push(row1);
-
       const row2 = ["Produits"];
       jours.forEach(() => { row2.push("Obj", "Stk", "Rst"); });
       rows.push(row2);
 
       const sortedProdKeys = Object.keys(produits).sort((a,b) => (produits[a].ordre || 0) - (produits[b].ordre || 0));
       sortedProdKeys.forEach(pID => {
-        const pName = produits[pID].nom;
-        const row = [pName];
+        const row = [produits[pID].nom];
         jours.forEach(j => {
           const vals = (production[pID] && production[pID][j]) ? production[pID][j] : { obj: 0, stock: 0 };
           const obj = parseInt(vals.obj) || 0;
@@ -227,12 +256,10 @@
         });
         rows.push(row);
       });
-
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws['!merges'] = merges;
       XLSX.utils.book_append_sheet(wb, ws, catName.substring(0, 31));
     });
-
     XLSX.writeFile(wb, `Maison_Jebrane_Villeparisis_${dDebut}_au_${dFin}.xlsx`);
   };
 
@@ -253,7 +280,7 @@
   window.supprimerProd = (catID, pID) => { if(confirm("Supprimer ?")) remove(ref(db, `categories/${catID}/produits/${pID}`)); };
   window.supprimerCat = (catID) => { if(confirm("Supprimer catégorie ?")) remove(ref(db, `categories/${catID}`)); };
   window.sauverDates = () => set(ref(db, 'config/dates'), { debut: document.getElementById('dateDebut').value, fin: document.getElementById('dateFin').value });
-  window.resetTotal = () => { if(confirm("TOUT EFFACER ?")) remove(ref(db, '/')); };
+  window.resetTotal = () => { if(confirm("⚠️ TOUT EFFACER DÉFINITIVEMENT ?")) remove(ref(db, '/')); };
   window.resetStocksUniquement = async () => {
     const prodRef = ref(db, 'production');
     const snap = await get(prodRef);
@@ -263,7 +290,12 @@
         await set(prodRef, prod);
     }
   };
-  jours.forEach(j => document.getElementById('stockJourSelect').add(new Option(j, j)));
+
+  // Initialisation des listes de jours
+  jours.forEach(j => {
+      document.getElementById('stockJourSelect').add(new Option(j, j));
+      document.getElementById('filtreJourSelect').add(new Option(j, j));
+  });
 </script>
 </body>
 </html>
