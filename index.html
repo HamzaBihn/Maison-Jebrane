@@ -138,6 +138,29 @@
   const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
   let globalData = {};
   let filtreActif = false;
+  let wakeLock = null;
+
+  // --- FONCTION ANTI-VEILLE ---
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log("Anti-veille activé");
+      }
+    } catch (err) {
+      console.error(`Erreur WakeLock: ${err.name}, ${err.message}`);
+    }
+  };
+
+  // Réactivation si on revient sur l'onglet
+  document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+      await requestWakeLock();
+    }
+  });
+
+  // Activer au premier clic (obligatoire sur certains navigateurs)
+  document.addEventListener('click', () => { if(!wakeLock) requestWakeLock(); }, { once: true });
 
   const sj = document.getElementById('stockJourSelect');
   sj.innerHTML = '<option value="">-- Jour --</option>';
