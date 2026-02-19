@@ -152,6 +152,10 @@
   onValue(ref(db, '/'), (snapshot) => {
     globalData = snapshot.val() || {};
     document.getElementById('status').innerText = "● EN LIGNE";
+    if(globalData.config && globalData.config.dates) {
+        document.getElementById('dateDebut').value = globalData.config.dates.debut || "";
+        document.getElementById('dateFin').value = globalData.config.dates.fin || "";
+    }
     render(globalData);
   });
 
@@ -228,13 +232,13 @@
         });
         parent.appendChild(section);
 
-        // RÉACTIVATION DU DRAG AND DROP PRODUITS
+        // DRAG & DROP PRODUITS
         new Sortable(tbody, { handle: '.handle-prod', animation: 150, onEnd: () => {
             tbody.querySelectorAll('tr').forEach((row, i) => update(ref(db, `categories/${catID}/produits/${row.dataset.id}`), { ordre: i }));
         }});
     });
 
-    // RÉACTIVATION DU DRAG AND DROP CATÉGORIES
+    // DRAG & DROP CATÉGORIES
     new Sortable(parent, { handle: '.cat-title', animation: 150, onEnd: () => {
         parent.querySelectorAll('.categorie-container').forEach((block, i) => update(ref(db, `categories/${block.dataset.id}`), { ordre: i }));
     }});
@@ -268,7 +272,6 @@
   window.ajouterProduit = () => { const n = document.getElementById('nomProd').value; const c = document.getElementById('selectCat').value; if(n && c) push(ref(db, `categories/${c}/produits`), { nom: n, ordre: 99 }); };
   window.updateVal = (p, j, t, v) => set(ref(db, `production/${p}/${j}/${t}`), v);
   window.sauverDates = () => set(ref(db, 'config/dates'), { debut: document.getElementById('dateDebut').value, fin: document.getElementById('dateFin').value });
-  window.quickSearchProd = () => { /* ... logigue recherche ... */ };
   window.updateStockProdList = () => {
       const cID = document.getElementById('stockCatSelect').value;
       const ps = document.getElementById('stockProdSelect');
@@ -286,26 +289,31 @@
       const wb = XLSX.utils.book_new();
       const cats = globalData.categories || {};
       const prod = globalData.production || {};
+      const dDebut = document.getElementById('dateDebut').value || "SansDate";
+      const dFin = document.getElementById('dateFin').value || "SansDate";
+
       Object.keys(cats).forEach(cID => {
           const row1 = [""]; jours.forEach(j => row1.push(j, "", ""));
           const row2 = ["Produit"]; jours.forEach(() => row2.push("Obj", "Stk", "Rst"));
-          const data = [row1, row2];
+          const dataRows = [row1, row2];
           const pList = cats[cID].produits || {};
-          Object.keys(pList).forEach(pID => {
+          const sortedPKeys = Object.keys(pList).sort((a,b) => (pList[a].ordre||0) - (pList[b].ordre||0));
+          
+          sortedPKeys.forEach(pID => {
               const row = [pList[pID].nom];
               jours.forEach(j => {
                   const v = (prod[pID] && prod[pID][j]) ? prod[pID][j] : {};
                   const hasS = v.hasOwnProperty('stock');
                   row.push(v.obj||0, hasS?v.stock:"-", hasS?Math.max(0,(v.obj||0)-v.stock):"-");
               });
-              data.push(row);
+              dataRows.push(row);
           });
-          const ws = XLSX.utils.aoa_to_sheet(data);
+          const ws = XLSX.utils.aoa_to_sheet(dataRows);
           ws['!merges'] = [];
           for(let i=0; i<7; i++) ws['!merges'].push({ s:{r:0, c:1+(i*3)}, e:{r:0, c:3+(i*3)} });
           XLSX.utils.book_append_sheet(wb, ws, cats[cID].nom.substring(0,30));
       });
-      XLSX.writeFile(wb, "Rapport_Villeparisis.xlsx");
+      XLSX.writeFile(wb, `Rapport_Villeparisis_${dDebut}_au_${dFin}.xlsx`);
   };
 </script>
 </body>
