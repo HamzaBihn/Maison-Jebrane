@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maison Jebrane - Villeparisis (V.ROBUSTE)</title>
+    <title>Maison Jebrane - Villeparisis (V.TOTALE)</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
@@ -22,6 +22,7 @@
         .btn { padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; border: none; text-transform: uppercase; font-size: 0.8em; transition: 0.2s; }
         .btn-gold { background: linear-gradient(45deg, #D4AF37, #F9E586); color: #1a1a1a; }
         .btn-orange { background: #e67e22; color: white; }
+        .btn-red { background: #c0392b; color: white; }
         .btn-outline { background: transparent; border: 1px solid #D4AF37; color: #D4AF37; }
         
         .categorie-container { margin-bottom: 30px; border: 1px solid #444; border-radius: 12px; overflow: hidden; }
@@ -52,6 +53,8 @@
         .delete-icon { color: #ff4d4d; cursor: pointer; margin-left: 10px; font-weight: bold; }
         .hidden-col { display: none; }
         .highlight-search { background-color: #555 !important; }
+
+        .footer-actions { text-align: center; margin-top: 40px; padding: 20px; border-top: 1px solid #444; }
     </style>
 </head>
 <body onclick="activerWakeLock()">
@@ -124,6 +127,10 @@
     </div>
 
     <div id="listeCategories"></div>
+
+    <div class="footer-actions">
+        <button class="btn btn-red" onclick="resetBoutiqueTotale()">⚠️ RÉINITIALISER TOUTE LA BOUTIQUE (VIDER TOUT)</button>
+    </div>
 </div>
 
 <script type="module">
@@ -259,6 +266,7 @@
     filterCatDropdown.value = currentFilter;
   }
 
+  // --- ACTIONS ---
   window.quickSearchProd = () => {
     const val = document.getElementById('quickSearch').value.toLowerCase();
     document.querySelectorAll('tr[data-id]').forEach(tr => {
@@ -280,12 +288,23 @@
   };
 
   window.resetStocksUniquement = async () => {
-      if(confirm("Vider les stocks et les validations vertes ?")) {
+      if(confirm("Vider les stocks et les validations vertes uniquement ?")) {
           const s = await get(ref(db, 'production'));
           if(s.exists()){
               let d = s.val();
               Object.keys(d).forEach(p => Object.keys(d[p]).forEach(j => { delete d[p][j].stock; delete d[p][j].fait; }));
               set(ref(db, 'production'), d);
+          }
+      }
+  };
+
+  window.resetBoutiqueTotale = async () => {
+      const p1 = confirm("⚠️ ATTENTION : Vous allez supprimer TOUTES les catégories et TOUS les produits !");
+      if(p1) {
+          const p2 = confirm("Êtes-vous ABSOLUMENT certain ? Cette action est irréversible.");
+          if(p2) {
+              await remove(ref(db, '/'));
+              location.reload();
           }
       }
   };
